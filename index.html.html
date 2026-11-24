@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#667eea">
+<title>Рандомайзер</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: #fff; border-radius: 20px; padding: 30px;
+    max-width: 420px; width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    position: relative;
+  }
+  h1 {
+    text-align: center; color: #333; font-size: 23px; margin-bottom: 6px;
+    cursor: default; user-select: none; -webkit-user-select: none;
+  }
+  .sub { text-align: center; color: #888; font-size: 13px; margin-bottom: 22px; }
+  label { display: block; color: #555; font-size: 13px; margin-bottom: 6px; font-weight: 600; }
+  input[type="text"], input[type="number"] {
+    width: 100%; padding: 12px 14px; border: 2px solid #e0e0e0;
+    border-radius: 10px; font-size: 16px; margin-bottom: 16px;
+  }
+  input:focus { outline: none; border-color: #667eea; }
+
+  .gear {
+    position: absolute; top: 16px; right: 16px;
+    background: transparent; border: none;
+    width: 30px; height: 30px; cursor: pointer; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    color: #d8d8e0; opacity: 0.5;
+    transition: opacity 0.3s, color 0.3s, transform 0.4s;
+    border-radius: 50%;
+  }
+  .gear:hover, .gear:active { opacity: 1; color: #a0a6d8; background: #f5f6fa; }
+  .gear.open { transform: rotate(90deg); opacity: 0.8; color: #667eea; }
+
+  .secret-panel {
+    max-height: 0; opacity: 0; overflow: hidden;
+    transition: max-height 0.35s ease, opacity 0.25s ease, margin 0.25s ease;
+    margin-bottom: 0;
+  }
+  .secret-panel.open { max-height: 240px; opacity: 1; margin-bottom: 8px; }
+
+  .secret-wrap { position: relative; }
+  .secret-wrap .eye {
+    position: absolute; right: 12px; top: 12px;
+    cursor: pointer; font-size: 18px; user-select: none; opacity: 0.6;
+  }
+  .secret-wrap .eye:hover { opacity: 1; }
+
+  button.roll {
+    width: 100%; padding: 16px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff; border: none; border-radius: 12px;
+    font-size: 18px; font-weight: 700; cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+  }
+  button.roll:hover { box-shadow: 0 6px 22px rgba(102,126,234,0.55); }
+  button.roll:active { transform: scale(0.97); }
+  button.roll:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .result {
+    margin-top: 22px; text-align: center;
+    min-height: 96px; display: flex; align-items: center; justify-content: center;
+    background: #f7f8fc; border-radius: 14px;
+    font-size: 52px; font-weight: 800; color: #667eea;
+    padding: 18px; word-break: break-all;
+  }
+  .result.anim { animation: pop 0.45s ease; }
+  .result.final { color: #764ba2; background: #f0ecff; }
+  @keyframes pop {
+    0% { transform: scale(0.4); opacity: 0; }
+    70% { transform: scale(1.12); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes flick {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+    100% { transform: translateY(0); }
+  }
+  .result.rolling { color: #a0a6d8; animation: flick 0.12s infinite; }
+  .hint { font-size: 12px; color: #999; text-align: center; margin-top: 12px; min-height: 16px; }
+  .saved-indicator {
+    font-size: 12px; color: #4caf50; text-align: center;
+    margin-top: -8px; margin-bottom: 10px; height: 14px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <button class="gear" id="gear" onclick="togglePanel()" title="Настройки">⚙</button>
+
+    <h1 id="title">🎲 Рандомайзер</h1>
+    <div class="sub">Нажмите «Рандом» — и узнаете результат</div>
+
+    <div class="secret-panel" id="secretPanel">
+      <label>🔒 Ваше число (будет выпадать)</label>
+      <div class="secret-wrap">
+        <input type="text" id="secret" placeholder="Например: 42" autocomplete="off">
+        <span class="eye" id="eye" onclick="toggleEye()">🙈</span>
+      </div>
+      <div class="saved-indicator" id="savedIndicator"></div>
+    </div>
+
+    <div style="display:flex; gap:10px;">
+      <input type="number" id="min" value="1" placeholder="От">
+      <input type="number" id="max" value="100" placeholder="До">
+    </div>
+
+    <button class="roll" id="rollBtn" onclick="roll()">🎰 Рандом</button>
+
+    <div class="result" id="result">?</div>
+    <div class="hint" id="hint">Пока идёт «прокрутка», показываются случайные числа из диапазона</div>
+  </div>
+
+<script>
+const secretEl = document.getElementById('secret');
+const resultEl = document.getElementById('result');
+const rollBtn  = document.getElementById('rollBtn');
+const panel    = document.getElementById('secretPanel');
+const gearBtn  = document.getElementById('gear');
+const savedInd = document.getElementById('savedIndicator');
+const eyeBtn   = document.getElementById('eye');
+const titleEl  = document.getElementById('title');
+const hintEl   = document.getElementById('hint');
+
+let rolling = false;
+
+function togglePanel() {
+  panel.classList.toggle('open');
+  gearBtn.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    setTimeout(() => secretEl.focus(), 300);
+  } else if (secretEl.value.trim() !== '') {
+    savedInd.textContent = '✓ Число сохранено';
+    setTimeout(() => { savedInd.textContent = ''; }, 2000);
+  }
+}
+
+let pressTimer = null;
+function startPress() {
+  pressTimer = setTimeout(() => {
+    togglePanel();
+    if (navigator.vibrate) { try { navigator.vibrate(30); } catch(e){} }
+  }, 600);
+}
+function cancelPress() {
+  if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+}
+titleEl.addEventListener('mousedown', startPress);
+titleEl.addEventListener('touchstart', startPress, { passive: true });
+['mouseup','mouseleave','touchend','touchcancel'].forEach(ev =>
+  titleEl.addEventListener(ev, cancelPress)
+);
+
+function toggleEye() {
+  if (secretEl.type === 'password') {
+    secretEl.type = 'text';
+    eyeBtn.textContent = '🙈';
+  } else {
+    secretEl.type = 'password';
+    eyeBtn.textContent = '👁️';
+  }
+}
+secretEl.type = 'password';
+eyeBtn.textContent = '🙈';
+
+function randBetween(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function showMessage(msg, color) {
+  hintEl.textContent = msg;
+  hintEl.style.color = color || '#e74c3c';
+  setTimeout(() => {
+    hintEl.textContent = 'Пока идёт «прокрутка», показываются случайные числа из диапазона';
+    hintEl.style.color = '#999';
+  }, 3000);
+}
+
+function roll() {
+  if (rolling) return;
+
+  const secret = secretEl.value.trim();
+  if (secret === '') {
+    panel.classList.add('open');
+    gearBtn.classList.add('open');
+    showMessage('Сначала впишите желаемое число (⚙ сверху)');
+    secretEl.focus();
+    return;
+  }
+
+  panel.classList.remove('open');
+  gearBtn.classList.remove('open');
+
+  let min = parseInt(document.getElementById('min').value);
+  let max = parseInt(document.getElementById('max').value);
+  if (isNaN(min)) min = 1;
+  if (isNaN(max)) max = 100;
+  if (min > max) [min, max] = [max, min];
+
+  rolling = true;
+  rollBtn.disabled = true;
+  resultEl.classList.remove('final', 'anim');
+  resultEl.classList.add('rolling');
+
+  const ticker = setInterval(() => {
+    resultEl.textContent = randBetween(min, max);
+  }, 70);
+
+  setTimeout(() => {
+    clearInterval(ticker);
+    resultEl.classList.remove('rolling');
+    resultEl.textContent = secret;
+    resultEl.classList.add('anim', 'final');
+    rolling = false;
+    rollBtn.disabled = false;
+  }, 1600);
+}
+</script>
+</body>
+</html>
